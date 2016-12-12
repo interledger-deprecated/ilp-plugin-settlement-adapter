@@ -1,0 +1,11 @@
+{
+  "name": "ilp-plugin-meta",
+  "version": "1.0.0",
+  "description": "ILP Plugin wrapper for settlement",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
