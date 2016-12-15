@@ -4,8 +4,19 @@
   "description": "ILP Plugin wrapper for settlement",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha test"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "co": "^4.6.0",
+    "debug": "^2.3.3",
+    "eventemitter2": "^2.2.1",
+    "ilp-core": "^10.0.0"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.2.0",
+    "mock-require": "^2.0.0"
+  }
 }
