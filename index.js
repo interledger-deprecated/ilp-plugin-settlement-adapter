@@ -1,9 +1,9 @@
 const co = require('co')
 const EventEmitter = require('eventemitter2')
 const Client = require('ilp-core').Client
-const debug = require('debug')('ilp-plugin-meta')
+const debug = require('debug')('ilp-plugin-settlement-adapter')
 
-module.exports = class PluginMeta extends EventEmitter {
+module.exports = class PluginSettlementAdapter extends EventEmitter {
   constructor (opts) {
     super()
 

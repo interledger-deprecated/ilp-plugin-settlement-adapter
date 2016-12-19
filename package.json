@@ -1,5 +1,5 @@
 {
-  "name": "ilp-plugin-meta",
+  "name": "ilp-plugin-settlement-adapter",
   "version": "1.0.0",
   "description": "ILP Plugin wrapper for settlement",
   "main": "index.js",
