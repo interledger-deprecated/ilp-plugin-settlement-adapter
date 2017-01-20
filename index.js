@@ -1,104 +1,116 @@
+'use strict'
+
 const co = require('co')
 const EventEmitter = require('eventemitter2')
 const Client = require('ilp-core').Client
 const debug = require('debug')('ilp-plugin-settlement-adapter')
+const utils = require('./src/utils')
+const uuid = require('uuid4')
 
 module.exports = class PluginSettlementAdapter extends EventEmitter {
   constructor (opts) {
     super()
 
-    this.info = null
+    utils.checkAmount(opts.amount)
+    utils.checkCurrency(opts.currency)
+    utils.checkDestination(opts.destination)
 
-    const that = this
-    debug('creating client of type', opts.__plugin)
-    this.client = new Client(Object.assign({},
-      opts,
-      { _plugin: require(opts.__plugin) }
-    ))
+    this._amount = opts.amount
+    this._currency = opts.currency
+    this._destination = opts.destination
 
-    this.client.plugin.sendMessage = function (msg) {
-      debug('inner plugin is sending message:', msg)
-      // when the plugin calls send message, this will forward to the connector
+    this._info = {
+      prefix: 'local.settle.' + uuid() + '.',
+      precision: utils.precision(this._amount),
+      scale: utils.scale(this._amount),
+      currencyCode: this._currency,
+      currencySymbol: this._currency
+    }
+
+    this._plugin = new EventEmitter()
+    this._plugin.sendMessage = function (msg) {
+      // when this plugin calls send message, this will forward to the connector
+      debug('settlement adapter is sending message:', msg)
+
       this.emit('outgoing_message', msg)
       that.emit('incoming_message', msg)
       return Promise.resolve(null)
     }
 
-    // make sure that our fake connector gets into the metadata
-    this.client.plugin.getInfo = () => {
+    this._plugin.getInfo = () => {
       return this.getInfo()
     }
 
-    const plugin = this.client.plugin
-
-    this.connect = co.wrap(this._connect).bind(this)
-    this.getInfo = co.wrap(this._getInfo).bind(this)
-
-    this.disconnect = this.client.disconnect.bind(plugin)
-    this.getAccount = this.client.plugin.getAccount.bind(plugin)
-    this.getBalance = this.client.plugin.getBalance.bind(plugin)
-    this.getPrefix = this.client.plugin.getPrefix.bind(plugin)
-    this.isConnected = this.client.plugin.isConnected.bind(plugin)
-  }
-
-  * _getInfo () {
-    return this.info
+    this._client = new Client(this._plugin)
+    this._connected = false
   }
 
   sendMessage (msg) {
     // when the connector calls send message, it will be forwarded to the client
-    debug('meta is sending message:', msg)
-    this.client.plugin.emit('incoming_message', msg)
+    debug('connector is sending message:', msg)
+
+    this._plugin.emit('incoming_message', msg)
     this.emit('outgoing_message', msg)
     return Promise.resolve(null)
   }
 
-  * _getQuote (amount, address) {
+  * _receive () {
+    debug(`settle ${this._amount} ${this._currency} to ${this._destination}`)
     debug('quoting with amount "' + amount + '" and address "' + address + '"')
-    const quote = yield this.client.quote({
+
+    const quote = yield this._client.quote({
       sourceAmount: amount,
       destinationAddress: address
     })
 
-    return quote.destinationAmount
+    yield this.emitAsync('incoming_transfer', {
+      id: uuid(),
+      account: this.getAccount(),
+      ledger: this._info.prefix,
+      amount: this._amount,
+      data: {
+        ilp_header: {
+          account: this._destination,
+          amount: quote.destinationAmount,
+          data: {}
+        }
+      }
+    })
+
+    debug('emitted settlement')
   }
 
-  * _connect () {
-    debug('connecting client...')
-    yield this.client.connect()
-    debug('client connected; listening for events.')
-
-    // get our metadata
-    this.info = Object.assign({},
-      yield this.client.plugin.getInfo(),
-      { connectors: [{ name: 'other' }] }
-    )
-
-    const that = this
-    this.client.plugin.on('incoming_transfer', co.wrap(function * (transfer) {
-      debug('incoming_transfer has been triggered:', transfer)
-
-      const address = transfer.data.memo
-      const amount = transfer.amount
-
-      debug(`got address "${address}" and amount "${amount}"`)
-
-      try {
-        yield that.emitAsync('incoming_transfer', Object.assign({}, transfer, {
-          data: { ilp_header: {
-            account: address,
-            amount: (yield that._getQuote(amount, address)),
-            data: {}
-          } }
-        }))
-      } catch (e) {
-        console.error(e)
-      }
-      debug('emitted notification')
-    }))
+  receive () {
+    return co.wrap(this._receive).call(this)
   }
 
   sendTransfer () {
     return Promise.reject(new Error('you can\'t send on this plugin'))
+  }
+
+  getBalance () {
+    return Promise.resolve('0')
+  }
+
+  connect () {
+    this._connected = true
+    return Promise.resolve(null)
+  }
+
+  disconnect () {
+    this._connected = false
+    return Promise.resolve(null)
+  }
+
+  isConnected () {
+    return this._connected
+  }
+
+  getInfo () {
+    return this._info
+  }
+
+  getAccount () {
+    return this._info.prefix + 'connector'
   }
 }
