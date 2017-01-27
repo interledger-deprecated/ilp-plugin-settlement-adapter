@@ -14,16 +14,24 @@ incoming transfer and route it to the proper destination.
 Say `example.bob` settled for $3.00. You might use the plugin like so:
 
 ```
-const plugin = new SettlementAdapter({
-  amount: '3.00',
-  currency: 'USD',
-  destination: 'example.bob'
-})
+const prefix = 'settlement.' + uuid()
+const currency = 'USD'
 
 // add plugin to connector ...
+connector.addPlugin(prefix, {
+  plugin: 'ilp-plugin-settlement-adapter',
+  currency: currency,
+  options: {
+    prefix: prefix,
+    currency: currency,
+    amount: '3.00',
+    destination: 'example.bob'
+  }
+})
 
 // emits an payment for 3.00 USD that gets routed to 'example.bob'
-yield plugin.receive()
+yield connector.getPlugin(prefix).receive()
 
 // remove plugin from connector ...
+yield connector.removePlugin(prefix)
 ```

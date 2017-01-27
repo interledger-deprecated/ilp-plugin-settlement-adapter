@@ -15,12 +15,13 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
     utils.checkCurrency(opts.currency)
     utils.checkDestination(opts.destination)
 
+    this._prefix = opts.prefix
     this._amount = opts.amount
     this._currency = opts.currency
     this._destination = opts.destination
 
     this._info = {
-      prefix: 'local.settle.' + uuid() + '.',
+      prefix: this._prefix,
       precision: utils.precision(this._amount),
       scale: utils.scale(this._amount),
       currencyCode: this._currency,
