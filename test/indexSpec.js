@@ -5,6 +5,7 @@ const PluginSettlementAdapter = require('..')
 describe('PluginSettlementAdapter', function () {
   beforeEach(function () {
     this.plugin = new PluginSettlementAdapter({
+      prefix: 'settlement.',
       amount: '3.00',
       currency: 'EUR',
       destination: 'example.red.bob'
