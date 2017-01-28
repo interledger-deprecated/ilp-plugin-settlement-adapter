@@ -11,6 +11,8 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
   constructor (opts) {
     super()
 
+    const self = this
+
     utils.checkAmount(opts.amount)
     utils.checkCurrency(opts.currency)
     utils.checkDestination(opts.destination)
@@ -25,7 +27,8 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
       precision: utils.precision(this._amount),
       scale: utils.scale(this._amount),
       currencyCode: this._currency,
-      currencySymbol: this._currency
+      currencySymbol: this._currency,
+      connectors: opts.connectors
     }
 
     this._plugin = new EventEmitter()
@@ -34,7 +37,7 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
       debug('settlement adapter is sending message:', msg)
 
       this.emit('outgoing_message', msg)
-      that.emit('incoming_message', msg)
+      self.emit('incoming_message', msg)
       return Promise.resolve(null)
     }
 
@@ -42,8 +45,14 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
       return this.getInfo()
     }
 
+    this._plugin.getAccount = () => {
+      return this.getAccount()
+    }
+
     this._client = new Client(this._plugin)
     this._connected = false
+
+    this.rejectIncomingTransfer = co.wrap(this._rejectIncomingTransfer).bind(this)
   }
 
   sendMessage (msg) {
@@ -56,22 +65,25 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
   }
 
   * _receive () {
-    debug(`settle ${this._amount} ${this._currency} to ${this._destination}`)
-    debug('quoting with amount "' + amount + '" and address "' + address + '"')
+    const amount = this._amount
+    const destination = this._destination
+
+    debug(`settle ${amount} ${this._currency} to ${destination}`)
+    debug('quoting with amount "' + amount + '" and address "' + destination + '"')
 
     const quote = yield this._client.quote({
       sourceAmount: amount,
-      destinationAddress: address
+      destinationAddress: destination
     })
 
     yield this.emitAsync('incoming_transfer', {
       id: uuid(),
       account: this.getAccount(),
       ledger: this._info.prefix,
-      amount: this._amount,
+      amount,
       data: {
         ilp_header: {
-          account: this._destination,
+          account: destination,
           amount: quote.destinationAmount,
           data: {}
         }
@@ -79,6 +91,10 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
     })
 
     debug('emitted settlement')
+  }
+
+  * _rejectIncomingTransfer () {
+    console.log('rejectIncomingTransfer called')
   }
 
   receive () {
