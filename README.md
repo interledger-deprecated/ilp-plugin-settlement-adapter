@@ -14,7 +14,7 @@ incoming transfer and route it to the proper destination.
 Say `example.bob` settled for $3.00. You might use the plugin like so:
 
 ```
-const prefix = 'settlement.' + uuid()
+const prefix = 'settlement.' + uuid() + '.'
 const currency = 'USD'
 
 // add plugin to connector ...
