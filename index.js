@@ -1,6 +1,7 @@
 'use strict'
 
-const co = require('co')
+const ILP = require('ilp')
+const IlpPacket = require('ilp-packet')
 const EventEmitter = require('eventemitter2')
 const Client = require('ilp-core').Client
 const debug = require('debug')('ilp-plugin-settlement-adapter')
@@ -21,17 +22,20 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
     this._amount = opts.amount
     this._currency = opts.currency
     this._destination = opts.destination
+    this._scale = utils.scale(this._amount)
 
     this._info = {
       prefix: this._prefix,
-      precision: utils.precision(this._amount),
-      scale: utils.scale(this._amount),
+      currencyScale: this._scale,
       currencyCode: this._currency,
       currencySymbol: this._currency,
       connectors: opts.connectors
     }
 
+    const that = this
     this._plugin = new EventEmitter()
+    this._plugin.connect = () => Promise.resolve()
+    this._plugin.getAccount = () => this._prefix + 'settler' 
     this._plugin.sendMessage = function (msg) {
       // when this plugin calls send message, this will forward to the connector
       debug('settlement adapter is sending message:', msg)
@@ -45,14 +49,7 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
       return this.getInfo()
     }
 
-    this._plugin.getAccount = () => {
-      return this.getAccount()
-    }
-
-    this._client = new Client(this._plugin)
     this._connected = false
-
-    this.rejectIncomingTransfer = co.wrap(this._rejectIncomingTransfer).bind(this)
   }
 
   sendMessage (msg) {
@@ -64,45 +61,37 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
     return Promise.resolve(null)
   }
 
-  * _receive () {
-    const amount = this._amount
-    const destination = this._destination
+  async receive () {
+    debug(`settle ${this._amount} ${this._currency} to ${this._destination}`)
+    debug('quoting with amount "' + this._amount + '" and address "' + this._destination + '"')
 
-    debug(`settle ${amount} ${this._currency} to ${destination}`)
-    debug('quoting with amount "' + amount + '" and address "' + destination + '"')
+    const quote = await ILP.ILQP.quote(this._plugin, {
+      sourceAmount: utils.scaleAmount(this._amount, this._scale),
+      destinationAddress: this._destination,
+      connectors: [ this.getAccount() ]
+    })
+    debug('got quote', quote)
 
-    const quote = yield this._client.quote({
-      sourceAmount: amount,
-      destinationAddress: destination
+    const packet = IlpPacket.serializeIlpPayment({
+      account: this._destination,
+      amount: quote.destinationAmount,
+      data: ''
     })
 
-    yield this.emitAsync('incoming_transfer', {
+    await this.emitAsync('incoming_transfer', {
       id: uuid(),
-      account: this.getAccount(),
+      from: this._info.prefix + 'settler',
+      to: this.getAccount(),
       ledger: this._info.prefix,
-      amount,
-      data: {
-        ilp_header: {
-          account: destination,
-          amount: quote.destinationAmount,
-          data: {}
-        }
-      }
+      amount: utils.scaleAmount(this._amount, this._scale),
+      ilp: utils.base64url(packet)
     })
 
     debug('emitted settlement')
   }
 
-  * _rejectIncomingTransfer () {
-    console.log('rejectIncomingTransfer called')
-  }
-
-  receive () {
-    return co.wrap(this._receive).call(this)
-  }
-
-  sendTransfer () {
-    return Promise.reject(new Error('you can\'t send on this plugin'))
+  async sendTransfer () {
+    throw new Error('you can\'t send on this plugin')
   }
 
   getBalance () {
