@@ -15,6 +15,10 @@ const scale = (num) => {
   return num.split('.')[1].length
 }
 
+const scaleAmount = (num, scale) => {
+  return ((+num * Math.pow(10, scale)) | 0) + ''
+}
+
 const checkAmount = (amount) => {
   if (typeof amount !== 'string' || !amount.match(/^[0-9]+(\.[0-9]+)?$/)) {
     throw new Error('Invalid amount: "' + amount + '"')
@@ -33,10 +37,20 @@ const checkDestination = (destination) => {
   }
 }
 
+const base64url = (buf) => {
+  return buf
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
+}
+
 module.exports = {
   checkAmount,
   checkCurrency,
   checkDestination,
   precision,
-  scale
+  scale,
+  scaleAmount,
+  base64url
 }
