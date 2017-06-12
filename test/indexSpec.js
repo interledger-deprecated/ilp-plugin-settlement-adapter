@@ -59,6 +59,12 @@ describe('PluginSettlementAdapter', function () {
       })
   })
 
+  it('should expose sendRequest in the internal plugin', async function () {
+    this.plugin.registerRequestHandler(() => 'foo')
+    assert.equal(await this.plugin._plugin.sendRequest(),
+      'foo')
+  })
+
   it('should quote and emit an incoming transfer', async function () {
     const quoteResponse = {
       to: 'test.settlement.settler',

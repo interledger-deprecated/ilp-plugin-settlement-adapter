@@ -41,8 +41,20 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
       debug('settlement adapter is sending message:', msg)
 
       this.emit('outgoing_message', msg)
-      self.emit('incoming_message', msg)
+      that.emit('incoming_message', msg)
       return Promise.resolve(null)
+    }
+    this._plugin.sendRequest = async function (req) {
+      debug('settlement adapter sending request:', req)
+
+      this.emit('outgoing_request', req)
+      that.emit('incoming_request', req)
+
+      const res = await that._handler(req)
+      this.emit('outgoing_response', res)
+      that.emit('incoming_response', res)
+
+      return res
     }
 
     this._plugin.getInfo = () => {
@@ -50,6 +62,16 @@ module.exports = class PluginSettlementAdapter extends EventEmitter {
     }
 
     this._connected = false
+    this._handler = false
+  }
+
+  registerRequestHandler (handler) {
+    if (this._handler) throw new Error('request handler already registered')
+    this._handler = handler
+  }
+
+  deregisterRequestHandler () {
+    this._handler = null
   }
 
   sendMessage (msg) {
